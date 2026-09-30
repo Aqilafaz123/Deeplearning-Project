@@ -260,11 +260,19 @@ class TextCNNSHAPExplainer:
             silent=True
         )
 
-        # shap_vals: list[2] → ambil kelas 1 (HOAX)
+        # shap_vals: ambil kelas 1 (HOAX) dengan aman untuk format list maupun ndarray 3D
         if isinstance(shap_vals, list):
             sv = shap_vals[1][0]
+        elif isinstance(shap_vals, np.ndarray):
+            if shap_vals.ndim == 3:
+                sv = shap_vals[0, :, 1]
+            elif shap_vals.ndim == 2:
+                sv = shap_vals[0]
+            else:
+                sv = shap_vals
         else:
-            sv = shap_vals[0]
+            sv = np.array(shap_vals)
+        sv = np.squeeze(np.asarray(sv, dtype=float))
 
         order = np.argsort(np.abs(sv))[::-1][:top_n]
         sorted_words = [words[i] for i in order]
