@@ -11,6 +11,7 @@ from src.models.text_cnn import YoonKimTextCNN
 
 
 from src.models.generative_reasoner import GenerativeFactChecker
+from src.models.shap_explainer import SHAPExplainer
 
 
 class HoaxDetectorInference:
@@ -149,18 +150,67 @@ class HoaxDetectorInference:
 
         return results
 
+    def explain_shap(self, text: str, background_texts: list = None,
+                     top_n: int = 15, output_dir: str = "results/shap",
+                     model: str = "all"):
+        """
+        Jalankan SHAP Explainable AI untuk satu teks.
+
+        Parameters
+        ----------
+        text            : str  – teks berita yang ingin dijelaskan
+        background_texts: list – teks latar belakang untuk KernelExplainer TextCNN
+                                 (opsional, default: list kosong → model pakai baseline)
+        top_n           : int  – jumlah token teratas yang ditampilkan
+        output_dir      : str  – folder output plot PNG
+        model           : str  – 'all' | 'svm' | 'textcnn' | 'indobert'
+        """
+        if background_texts is None:
+            background_texts = []
+
+        xai = SHAPExplainer(self)
+        model = model.lower()
+
+        if model == "all":
+            return xai.explain_all(text, background_texts=background_texts,
+                                   top_n=top_n, output_dir=output_dir)
+        elif model == "svm":
+            return xai.explain_svm(text, top_n=top_n, plot=True,
+                                   save_path=f"{output_dir}/shap_svm.png")
+        elif model == "textcnn":
+            return xai.explain_textcnn(text, background_texts=background_texts,
+                                       top_n=top_n, plot=True,
+                                       save_path=f"{output_dir}/shap_textcnn.png")
+        elif model == "indobert":
+            return xai.explain_indobert(text, top_n=top_n, plot=True,
+                                        save_path=f"{output_dir}/shap_indobert.png")
+        else:
+            raise ValueError(f"model harus salah satu dari: all, svm, textcnn, indobert")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test news text on all 3 trained models")
     parser.add_argument("--text", type=str, default=None, help="News text to predict")
-    parser.add_argument("--explain", action="store_true", help="Generate AI reasoning explanation")
+    parser.add_argument("--explain", action="store_true", help="Generate Generative AI reasoning explanation")
     parser.add_argument("--api_key", type=str, default=None, help="Gemini API Key")
+    parser.add_argument("--shap", action="store_true", help="Run SHAP Explainable AI analysis")
+    parser.add_argument("--shap_model", type=str, default="all",
+                        choices=["all", "svm", "textcnn", "indobert"],
+                        help="Pilih model untuk SHAP (default: all)")
+    parser.add_argument("--shap_output", type=str, default="results/shap",
+                        help="Folder output plot SHAP (default: results/shap)")
     args = parser.parse_args()
 
     detector = HoaxDetectorInference()
+    text = args.text or "Beredar kabar bahwa Presiden telah menetapkan tanggal 30 September menjadi hari libur nasional resmi."
 
-    if args.text:
-        detector.print_prediction(args.text, explain=args.explain, api_key=args.api_key)
-    else:
-        sample_hoax = "Beredar kabar bahwa Presiden telah menetapkan tanggal 30 September menjadi hari libur nasional resmi."
-        detector.print_prediction(sample_hoax, explain=args.explain, api_key=args.api_key)
+    # Prediksi + (opsional) Generative AI
+    detector.print_prediction(text, explain=args.explain, api_key=args.api_key)
+
+    # SHAP XAI
+    if args.shap:
+        detector.explain_shap(
+            text,
+            model=args.shap_model,
+            output_dir=args.shap_output
+        )
