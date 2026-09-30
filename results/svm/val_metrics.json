@@ -1,0 +1,48 @@
+{
+    "model_name": "SVM (Validation)",
+    "accuracy": 0.968720076603894,
+    "precision_macro": 0.9634878723452895,
+    "recall_macro": 0.9661605989119888,
+    "f1_macro": 0.9648044674806366,
+    "precision_weighted": 0.9688416379806669,
+    "recall_weighted": 0.968720076603894,
+    "f1_weighted": 0.9687650405364099,
+    "confusion_matrix": [
+        [
+            2040,
+            55
+        ],
+        [
+            43,
+            995
+        ]
+    ],
+    "classification_report": {
+        "0": {
+            "precision": 0.9793566970715314,
+            "recall": 0.9737470167064439,
+            "f1-score": 0.9765438008616563,
+            "support": 2095.0
+        },
+        "1": {
+            "precision": 0.9476190476190476,
+            "recall": 0.9585741811175337,
+            "f1-score": 0.9530651340996169,
+            "support": 1038.0
+        },
+        "accuracy": 0.968720076603894,
+        "macro avg": {
+            "precision": 0.9634878723452895,
+            "recall": 0.9661605989119888,
+            "f1-score": 0.9648044674806366,
+            "support": 3133.0
+        },
+        "weighted avg": {
+            "precision": 0.9688416379806669,
+            "recall": 0.968720076603894,
+            "f1-score": 0.9687650405364099,
+            "support": 3133.0
+        }
+    },
+    "roc_auc": 0.9919941966605507
+}

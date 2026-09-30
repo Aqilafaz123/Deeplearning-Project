@@ -1,0 +1,48 @@
+{
+    "model_name": "IndoBERT (Test)",
+    "accuracy": 0.9953574744661096,
+    "precision_macro": 0.9953444190817418,
+    "recall_macro": 0.9949368459040058,
+    "f1_macro": 0.9951396504339114,
+    "precision_weighted": 0.9953573604452854,
+    "recall_weighted": 0.9953574744661096,
+    "f1_weighted": 0.9953565190975473,
+    "confusion_matrix": [
+        [
+            650,
+            2
+        ],
+        [
+            3,
+            422
+        ]
+    ],
+    "classification_report": {
+        "0": {
+            "precision": 0.9954058192955589,
+            "recall": 0.9969325153374233,
+            "f1-score": 0.9961685823754789,
+            "support": 652.0
+        },
+        "1": {
+            "precision": 0.9952830188679245,
+            "recall": 0.9929411764705882,
+            "f1-score": 0.9941107184923439,
+            "support": 425.0
+        },
+        "accuracy": 0.9953574744661096,
+        "macro avg": {
+            "precision": 0.9953444190817418,
+            "recall": 0.9949368459040058,
+            "f1-score": 0.9951396504339114,
+            "support": 1077.0
+        },
+        "weighted avg": {
+            "precision": 0.9953573604452854,
+            "recall": 0.9953574744661096,
+            "f1-score": 0.9953565190975473,
+            "support": 1077.0
+        }
+    },
+    "roc_auc": 0.9998953446409238
+}

@@ -1,0 +1,48 @@
+{
+    "model_name": "TextCNN (Test)",
+    "accuracy": 0.9842154131847726,
+    "precision_macro": 0.985358722215757,
+    "recall_macro": 0.9816383976903644,
+    "f1_macro": 0.9834192602467051,
+    "precision_weighted": 0.9842994113992937,
+    "recall_weighted": 0.9842154131847726,
+    "f1_weighted": 0.9841850514201852,
+    "confusion_matrix": [
+        [
+            648,
+            4
+        ],
+        [
+            13,
+            412
+        ]
+    ],
+    "classification_report": {
+        "0": {
+            "precision": 0.9803328290468987,
+            "recall": 0.9938650306748467,
+            "f1-score": 0.9870525514089871,
+            "support": 652.0
+        },
+        "1": {
+            "precision": 0.9903846153846154,
+            "recall": 0.9694117647058823,
+            "f1-score": 0.9797859690844233,
+            "support": 425.0
+        },
+        "accuracy": 0.9842154131847726,
+        "macro avg": {
+            "precision": 0.985358722215757,
+            "recall": 0.9816383976903644,
+            "f1-score": 0.9834192602467051,
+            "support": 1077.0
+        },
+        "weighted avg": {
+            "precision": 0.9842994113992937,
+            "recall": 0.9842154131847726,
+            "f1-score": 0.9841850514201852,
+            "support": 1077.0
+        }
+    },
+    "roc_auc": 0.9982677733670156
+}
