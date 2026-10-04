@@ -60,3 +60,7 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Presentation files (kept local only)
+*.pptx
+generate_presentation*.py
