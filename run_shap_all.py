@@ -135,7 +135,7 @@ def masked_predict(masks):
         texts.append(' '.join(masked_words))
     return predict_cnn_texts(texts)
 
-baseline_mask = np.ones((1, len(words_uji)), dtype=bool)
+baseline_mask = np.zeros((1, len(words_uji)), dtype=bool)
 cnn_explainer = shap.KernelExplainer(masked_predict, baseline_mask)
 
 print('  Menghitung SHAP values TextCNN (nsamples=100)...')

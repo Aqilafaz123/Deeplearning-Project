@@ -5,15 +5,19 @@ from sklearn.model_selection import train_test_split
 
 def load_dataset(base_dir="archive/Summarized", text_col="summarized"):
     """
-    Loads and merges the 4 political news datasets (CNN, Kompas, Tempo, TurnBackHoax).
+    Loads and merges the political news datasets (CNN, Kompas, Tempo, TurnBackHoax),
+    or combined multi-topic dataset if base_dir is 'combined'.
     
     Args:
-        base_dir: Path to folder containing the xlsx files (Summarized or Cleaned).
-        text_col: Column name to use as feature text ('summarized', 'cleaned', or 'text_new').
+        base_dir: Path to folder containing the xlsx files, or 'combined'.
+        text_col: Column name to use as feature text.
         
     Returns:
         pd.DataFrame with columns ['text', 'label', 'source']
     """
+    if base_dir == "combined":
+        return load_combined_dataset()
+
     sources_config = [
         {"file": "dataset_cnn_summarized.xlsx", "label": 0, "source": "CNN"},
         {"file": "dataset_kompas_summarized.xlsx", "label": 0, "source": "Kompas"},
@@ -67,6 +71,78 @@ def load_dataset(base_dir="archive/Summarized", text_col="summarized"):
     return combined_df
 
 
+def load_combined_dataset():
+    """
+    Loads and merges the 4 archive political news datasets with the freshly scraped
+    multimedia/multi-topic datasets (total 41,258 samples after deduplication).
+    """
+    archive_configs = [
+        {"file": "archive/Summarized/dataset_cnn_summarized.xlsx", "source": "CNN", "label": 0},
+        {"file": "archive/Summarized/dataset_kompas_summarized.xlsx", "source": "Kompas", "label": 0},
+        {"file": "archive/Summarized/dataset_tempo_summarized.xlsx", "source": "Tempo", "label": 0},
+        {"file": "archive/Summarized/dataset_turnbackhoax_summarized.xlsx", "source": "TurnBackHoax", "label": 1},
+    ]
+
+    candidates = ['summarized', 'FullText', 'cleaned', 'original', 'Narasi', 'Title']
+
+    def extract_best_text(row):
+        for col in candidates:
+            if col in row and pd.notna(row[col]):
+                val = str(row[col]).strip()
+                if val and val.lower() != 'nan' and len(val) > 10:
+                    return val
+        return ''
+
+    dfs = []
+    for cfg in archive_configs:
+        if not os.path.exists(cfg["file"]):
+            continue
+        df_temp = pd.read_excel(cfg["file"])
+        df_temp['source'] = cfg["source"]
+        df_temp['label'] = cfg["label"]
+        df_temp['text'] = df_temp.apply(extract_best_text, axis=1)
+        df_valid = df_temp[df_temp['text'].str.strip().str.len() > 10]
+        dfs.append(df_valid[['text', 'label', 'source']])
+
+    # Multi-media freshly scraped data (10,118 rows)
+    combined_csv = "dataset_multimedia/RAW/dataset_multimedia_combined.csv"
+    if os.path.exists(combined_csv):
+        df_csv = pd.read_csv(combined_csv)
+        df_csv['text'] = df_csv.apply(extract_best_text, axis=1)
+        df_csv['label'] = df_csv['hoax'].astype(int)
+        df_csv['source'] = df_csv['Source']
+        df_valid_csv = df_csv[df_csv['text'].str.strip().str.len() > 10]
+        dfs.append(df_valid_csv[['text', 'label', 'source']])
+    else:
+        # Fallback to individual excel files if CSV not found
+        raw_configs = [
+            {"file": "dataset_multimedia/RAW/dataset_turnbackhoax_raw.xlsx", "source": "TurnBackHoax", "label": 1},
+            {"file": "dataset_multimedia/RAW/dataset_liputan6_raw.xlsx", "source": "Liputan6", "label": 1},
+            {"file": "dataset_multimedia/RAW/dataset_merdeka_raw.xlsx", "source": "Merdeka", "label": 1},
+            {"file": "dataset_multimedia/RAW/dataset_detik_raw.xlsx", "source": "Detik", "label": 0},
+            {"file": "dataset_multimedia/RAW/dataset_kompas_raw.xlsx", "source": "Kompas", "label": 0},
+            {"file": "dataset_multimedia/RAW/dataset_antara_raw.xlsx", "source": "Antara", "label": 0},
+            {"file": "dataset_multimedia/RAW/dataset_cnn_raw.xlsx", "source": "CNN", "label": 0},
+        ]
+        for cfg in raw_configs:
+            if not os.path.exists(cfg["file"]):
+                continue
+            df_temp = pd.read_excel(cfg["file"])
+            df_temp['source'] = cfg["source"]
+            df_temp['label'] = cfg["label"]
+            df_temp['text'] = df_temp.apply(extract_best_text, axis=1)
+            df_valid = df_temp[df_temp['text'].str.strip().str.len() > 10]
+            dfs.append(df_valid[['text', 'label', 'source']])
+
+    combined_df = pd.concat(dfs, ignore_index=True)
+    combined_df = combined_df.drop_duplicates(subset=['text']).reset_index(drop=True)
+
+    print(f"[DataLoader] Total loaded combined samples: {len(combined_df)}")
+    print(f"[DataLoader] Class distribution: {dict(combined_df['label'].value_counts())}")
+    print(f"[DataLoader] Source breakdown: {dict(combined_df['source'].value_counts())}")
+    return combined_df
+
+
 def get_stratified_splits(base_dir="archive/Summarized", 
                            text_col="summarized", 
                            train_ratio=0.8, 
@@ -80,7 +156,12 @@ def get_stratified_splits(base_dir="archive/Summarized",
     Ensures identical splits across all 3 models for journal reproducibility.
     """
     os.makedirs(cache_dir, exist_ok=True)
-    dataset_tag = "archive" if "archive" in base_dir else "politics"
+    if "combined" in base_dir.lower():
+        dataset_tag = "combined"
+    elif "archive" in base_dir.lower():
+        dataset_tag = "archive"
+    else:
+        dataset_tag = "politics"
     train_path = os.path.join(cache_dir, f"train_{dataset_tag}_{text_col}.csv")
     val_path = os.path.join(cache_dir, f"val_{dataset_tag}_{text_col}.csv")
     test_path = os.path.join(cache_dir, f"test_{dataset_tag}_{text_col}.csv")

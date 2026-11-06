@@ -115,7 +115,7 @@ class IndoBERTTrainer:
         accuracy = np.mean(np.array(all_preds) == np.array(all_labels))
         return avg_loss, accuracy, np.array(all_preds), np.array(all_probs)
 
-    def fit(self, train_loader, val_loader, epochs=3, warmup_ratio=0.1, save_dir="saved_models/best_indobert"):
+    def fit(self, train_loader, val_loader, epochs=5, patience=2, warmup_ratio=0.1, save_dir="saved_models/best_indobert"):
         os.makedirs(save_dir, exist_ok=True)
         total_steps = len(train_loader) * epochs
         warmup_steps = int(total_steps * warmup_ratio)
@@ -133,6 +133,8 @@ class IndoBERTTrainer:
         
         train_losses, val_losses, val_accs = [], [], []
         best_val_loss = float('inf')
+        patience_counter = 0
+        best_epoch = 1
         
         for epoch in range(1, epochs + 1):
             train_loss = self.train_epoch(train_loader, optimizer, scheduler)
@@ -142,13 +144,21 @@ class IndoBERTTrainer:
             val_losses.append(val_loss)
             val_accs.append(val_acc)
             
-            print(f"IndoBERT Epoch {epoch:02d}/{epochs:02d} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
+            print(f"IndoBERT Epoch {epoch:02d}/{epochs:02d} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}", end="")
             
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
+                best_epoch = epoch
+                patience_counter = 0
                 self.model.save_pretrained(save_dir)
                 self.tokenizer.save_pretrained(save_dir)
-                print(f"  -> Best IndoBERT checkpoint saved to {save_dir} (Val Loss: {val_loss:.4f})")
+                print(f" -> Best checkpoint saved to {save_dir} (Val Loss: {val_loss:.4f})")
+            else:
+                patience_counter += 1
+                print(f" -> [Val Loss naik, patience: {patience_counter}/{patience}]")
+                if patience is not None and patience_counter >= patience:
+                    print(f"\n[Early Stopping] Pelatihan dihentikan pada epoch {epoch} untuk mencegah overfitting.")
+                    break
                 
         # Reload best model
         print(f"[IndoBERT] Loading best model checkpoint from {save_dir}...")

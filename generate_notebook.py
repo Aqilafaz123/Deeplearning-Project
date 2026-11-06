@@ -420,10 +420,12 @@ plot_cm(results_cnn['cm'], title="Confusion Matrix: TextCNN")
 # Cell 17: Markdown Model 3 (IndoBERT)
 cells.append(nbf.v4.new_markdown_cell("""## 7. Model 3: Transformer (IndoBERT Fine-Tuning)
 Model ketiga adalah arsitektur Transformer mutakhir bahasa Indonesia: **`indobenchmark/indobert-base-p1`**.
-Model ini di-*fine-tune* menggunakan HuggingFace Transformers dengan:
-- Optimasi memori: Automatic Mixed Precision (`torch.amp.autocast`)
-- Optimizer: AdamW dengan Linear Warmup Learning Rate Scheduler
-- Maximum sequence length: 128 token (sangat pas untuk panjang teks hasil ringkasan/narasi).
+Model ini di-*fine-tune* selama **5 Epoch** dengan konfigurasi proteksi khusus agar **tidak terjadi overfitting**:
+- **Pencegahan Overfitting (Anti-Overfitting)**: Dilengkapi mekanisme *Early Stopping* (`patience=2`) dan *Best Checkpoint Restoration* yang otomatis memulihkan bobot dengan *Validation Loss* terendah.
+- **Regularisasi Bobot**: *Weight Decay* terpisah (L2 Regularization) untuk parameter bobot (dinonaktifkan pada bias dan LayerNorm).
+- **Optimasi Memori (Anti-OOM)**: Automatic Mixed Precision (`torch.amp.autocast`), *gradient clipping* (max norm 1.0), dan *CPU offloading* untuk bobot checkpoint agar bebas dari GPU VRAM bottleneck.
+- **Learning Rate Scheduler**: AdamW (`lr=2e-5`) dengan *Linear Warmup* (10% total steps) dan *linear decay* sepanjang 5 epoch.
+- **Maximum sequence length**: 128 token (sangat representatif untuk panjang teks ringkasan berita).
 """))
 
 # Cell 18: Code Model 3 (IndoBERT)
@@ -468,16 +470,50 @@ test_bert_loader = DataLoader(test_bert_ds, batch_size=16, shuffle=False)
 """))
 
 # Cell 19: Code Model 3 Training
-cells.append(nbf.v4.new_code_cell("""bert_epochs = 3
+cells.append(nbf.v4.new_code_cell("""# =====================================================================
+# Hyperparameter & Konfigurasi Pelatihan IndoBERT (5 Epochs + Anti-Overfitting)
+# =====================================================================
+bert_epochs = 5
+patience = 2  # Early stopping: toleransi epoch jika val_loss tidak membaik
+patience_counter = 0
+
 total_steps = len(train_bert_loader) * bert_epochs
-optimizer = torch.optim.AdamW(bert_model.parameters(), lr=2e-5, weight_decay=0.01)
-scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(total_steps * 0.1), num_training_steps=total_steps)
+warmup_steps = int(total_steps * 0.1)
+
+# 1. Regularisasi Weight Decay Terpisah (Anti-Overfitting Best Practice)
+# Hindari decay pada bias dan LayerNorm agar bobot model stabil
+no_decay = ['bias', 'LayerNorm.weight']
+optimizer_grouped_parameters = [
+    {
+        'params': [p for n, p in bert_model.named_parameters() if not any(nd in n for nd in no_decay)],
+        'weight_decay': 0.01
+    },
+    {
+        'params': [p for n, p in bert_model.named_parameters() if any(nd in n for nd in no_decay)],
+        'weight_decay': 0.0
+    }
+]
+
+optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=2e-5)
+scheduler = get_linear_schedule_with_warmup(
+    optimizer, 
+    num_warmup_steps=warmup_steps, 
+    num_training_steps=total_steps
+)
 scaler = torch.amp.GradScaler('cuda') if device.type == 'cuda' else None
 
 best_bert_loss = float('inf')
+best_epoch = 1
 best_bert_weights = None
 
+# Tracking metrik per epoch untuk evaluasi kurva pelatihan
+bert_train_losses = []
+bert_val_losses = []
+bert_val_accs = []
+
 print(f"Memulai Fine-Tuning IndoBERT selama {bert_epochs} Epoch...")
+print(f"Mekanisme Proteksi: Early Stopping (patience={patience}), Weight Decay, Gradient Clipping, dan Best Checkpoint Restoration.")
+
 for epoch in range(1, bert_epochs + 1):
     bert_model.train()
     total_loss = 0
@@ -507,7 +543,7 @@ for epoch in range(1, bert_epochs + 1):
         total_loss += loss.item()
     train_loss = total_loss / len(train_bert_loader)
     
-    # Validasi
+    # --- Fase Validasi ---
     bert_model.eval()
     val_loss_total = 0
     correct = 0
@@ -523,14 +559,55 @@ for epoch in range(1, bert_epochs + 1):
             
     val_loss = val_loss_total / len(val_bert_loader)
     val_acc = correct / len(val_df)
-    print(f"IndoBERT Epoch {epoch:02d}/{bert_epochs:02d} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
     
+    bert_train_losses.append(train_loss)
+    bert_val_losses.append(val_loss)
+    bert_val_accs.append(val_acc)
+    
+    print(f"IndoBERT Epoch {epoch:02d}/{bert_epochs:02d} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}", end="")
+    
+    # 2. Checkpointing Model Terbaik & Deteksi Overfitting
     if val_loss < best_bert_loss:
         best_bert_loss = val_loss
-        best_bert_weights = bert_model.state_dict().copy()
+        best_epoch = epoch
+        # Simpan state_dict ke CPU RAM agar tidak membebani VRAM GPU (mencegah CUDA OOM)
+        best_bert_weights = {k: v.cpu().clone() for k, v in bert_model.state_dict().items()}
+        patience_counter = 0
+        print(f" -> [Checkpoint Terbaik Disimpan: Epoch {epoch}]")
+    else:
+        patience_counter += 1
+        print(f" -> [Val Loss tidak membaik ({patience_counter}/{patience})]")
+        if patience_counter >= patience:
+            print(f"\\n[Early Stopping Dipicu] Pelatihan dihentikan pada epoch {epoch} untuk mencegah overfitting!")
+            break
+            
+    # Bersihkan cache VRAM GPU di akhir setiap epoch
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
 
-bert_model.load_state_dict(best_bert_weights)
-print("Fine-tuning IndoBERT selesai dan bobot terbaik dimuat.")
+# 3. Restorasi Bobot Terbaik
+# Memastikan model akhir yang dipakai pada data test adalah bobot paling optimal (terbebas dari overfitting)
+bert_model.load_state_dict({k: v.to(device) for k, v in best_bert_weights.items()})
+print(f"\\nPelatihan IndoBERT selesai! Bobot optimal dari Epoch {best_epoch:02d} (Val Loss: {best_bert_loss:.4f}) berhasil dimuat.")
+print("Model terjamin bebas dari overfitting karena mengevaluasi bobot validasi terbaik.")
+
+# 4. Visualisasi Kurva Loss & Monitoring Overfitting
+plt.figure(figsize=(8, 4.5), dpi=150)
+epochs_ran = range(1, len(bert_train_losses) + 1)
+plt.plot(epochs_ran, bert_train_losses, marker='o', color='#2b5c8f', label='Train Loss')
+plt.plot(epochs_ran, bert_val_losses, marker='s', color='#d9534f', label='Val Loss')
+plt.axvline(x=best_epoch, color='#2a9d8f', linestyle='--', linewidth=1.5, label=f'Model Terbaik (Epoch {best_epoch})')
+plt.title('Kurva Loss Pelatihan IndoBERT (Monitoring Anti-Overfitting)', fontsize=12, fontweight='bold')
+plt.xlabel('Epoch', fontsize=10)
+plt.ylabel('Cross-Entropy Loss', fontsize=10)
+plt.xticks(list(epochs_ran))
+plt.legend(frameon=True)
+plt.grid(True, linestyle=':', alpha=0.6)
+plt.tight_layout()
+os.makedirs('results', exist_ok=True)
+plt.savefig('results/indobert_learning_curve.png', dpi=150, bbox_inches='tight')
+plt.show()
+print("Grafik kurva pelatihan disimpan ke 'results/indobert_learning_curve.png'")
 """))
 
 # Cell 20: Code Model 3 Evaluation

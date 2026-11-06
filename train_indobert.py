@@ -18,7 +18,8 @@ def run_indobert_experiment(base_dir="archive/Summarized",
                             text_col="summarized", 
                             output_dir="results/indobert",
                             model_name="indobenchmark/indobert-base-p1",
-                            epochs=3, 
+                            epochs=5, 
+                            patience=2,
                             batch_size=16, 
                             max_len=128,
                             lr=2e-5):
@@ -47,6 +48,7 @@ def run_indobert_experiment(base_dir="archive/Summarized",
         train_loader=train_loader, 
         val_loader=val_loader, 
         epochs=epochs, 
+        patience=patience,
         save_dir=save_dir
     )
     
@@ -85,7 +87,8 @@ if __name__ == "__main__":
     parser.add_argument("--text_col", type=str, default="summarized")
     parser.add_argument("--output_dir", type=str, default="results/indobert")
     parser.add_argument("--model_name", type=str, default="indobenchmark/indobert-base-p1")
-    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--patience", type=int, default=2)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--max_len", type=int, default=128)
     parser.add_argument("--lr", type=float, default=2e-5)
@@ -97,6 +100,7 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         model_name=args.model_name,
         epochs=args.epochs,
+        patience=args.patience,
         batch_size=args.batch_size,
         max_len=args.max_len,
         lr=args.lr

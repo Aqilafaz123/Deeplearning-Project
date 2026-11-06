@@ -39,13 +39,28 @@ saved_models/
 *.safetensors
 
 # Large data & archive folders (exceed GitHub limits)
-archive/
 archive.zip
 dataset_politics/
-data_splits/
+dataset_multimedia_12k/
+dataset_multitopic_10k/
+dataset_multitopic/
+dataset_kesehatan/
+komdigi_hoaks.csv
+
+# Ignore redundant/duplicate data splits, keep only the official 41k & 10k splits
+data_splits/*
+!data_splits/train_combined_41k.csv
+!data_splits/val_combined_41k.csv
+!data_splits/test_combined_41k.csv
+!data_splits/train_scraped_10k.csv
+!data_splits/val_scraped_10k.csv
+!data_splits/test_scraped_10k.csv
+
 *.zip
 *.tar.gz
 *.gz
+*.docx
+*.pdf
 
 # IDE
 .vscode/
